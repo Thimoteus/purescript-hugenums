@@ -5,7 +5,10 @@ module Data.HugeNum
   , lessPrecise
   , integerPart
   , fractionalPart
-  , parseScientific , Sign(..), parseNumber, NumberStyle(..)
+  , abs
+  , isNegative
+  , isPositive
+  , addPlusPlus
   ) where
 
 import Prelude
@@ -13,10 +16,11 @@ import Global (readFloat)
 
 import Data.String (toCharArray, fromCharArray, contains)
 import Data.Array (span, drop, take, mapMaybe, zipWith, length, filter, uncons,
-                  insertAt, replicate, dropWhile, reverse)
+                  insertAt, replicate, dropWhile, reverse, (:))
 import Data.Foldable (foldl, all)
 import Data.Maybe.Unsafe (fromJust)
 import Data.Int (round)
+import Data.Tuple (Tuple(..), fst, snd)
 import Data.Digit
 
 data Sign = Plus | Minus
@@ -61,7 +65,7 @@ compareHugeNum x@(HugeNum r1) y@(HugeNum r2)
   | r1.sign > r2.sign = GT
   | otherwise = z where
     dec = r1.decimal
-    r = equivalize x y
+    r = equivalize { fst: x, snd: y }
     s = rec r.fst
     m = rec r.snd
     x' = if x == r.fst then s else m
@@ -77,17 +81,27 @@ dropZeroes (HugeNum r) = HugeNum z where
   andReverseIt = reverse flipIt
   z = r { digits = take r.decimal r.digits ++ andReverseIt }
 
-equivalize :: HugeNum -> HugeNum -> { fst :: HugeNum, snd :: HugeNum }
-equivalize x@(HugeNum r1) y@(HugeNum r2)
-  | length (drop r1.decimal r1.digits) == length (drop r2.decimal r2.digits) = { fst: x, snd: y }
-  | otherwise = z where
-    test = x `lessPrecise` y
-    lesser = if test then r1 else r2
-    greater = if test then r2 else r1
-    lesserDecimal = length (drop greater.decimal greater.digits) - length (drop lesser.decimal lesser.digits)
-    zeroes = replicate lesserDecimal _zero
-    lesser' = lesser { digits = lesser.digits ++ zeroes }
-    z = { fst: HugeNum lesser', snd: HugeNum greater }
+equivalize :: { fst:: HugeNum, snd :: HugeNum } -> { fst :: HugeNum, snd :: HugeNum }
+equivalize = integralize <<< fractionalize where
+  fractionalize { fst = x@(HugeNum r1), snd = y@(HugeNum r2) }
+    | length (drop r1.decimal r1.digits) == length (drop r2.decimal r2.digits) = { fst: x, snd: y }
+    | otherwise = z where
+      test = x `lessPrecise` y
+      lesser = if test then r1 else r2
+      greater = if test then r2 else r1
+      lesserDecimal = length (drop greater.decimal greater.digits) - length (drop lesser.decimal lesser.digits)
+      zeroes = replicate lesserDecimal _zero
+      lesser' = lesser { digits = lesser.digits ++ zeroes }
+      z = { fst: HugeNum lesser', snd: HugeNum greater }
+  integralize { fst = x@(HugeNum r1), snd = y@(HugeNum r2) }
+    | length (take r1.decimal r1.digits) == length (take r2.decimal r2.digits) = { fst: x, snd: y }
+    | otherwise = z where
+      lesser = rec (min x y)
+      greater = rec (max x y)
+      zeroesLength = length (take greater.decimal greater.digits) - length (take lesser.decimal lesser.digits)
+      zeroes = replicate zeroesLength _zero
+      lesser' = lesser { digits = zeroes ++ lesser.digits, decimal = greater.decimal }
+      z = { fst: HugeNum lesser', snd: HugeNum greater }
 
 lessPrecise :: HugeNum -> HugeNum -> Boolean
 lessPrecise (HugeNum r1) (HugeNum r2) =
@@ -121,11 +135,6 @@ oneHugeNum :: HugeNum
 oneHugeNum = HugeNum { digits: [_one, _one], decimal: 1, sign: Plus }
 
 data NumberStyle = Float | Integral | Scientific
-instance showNumberStyle :: Show NumberStyle where
-  show Float = "Float"
-  show Integral = "Integral"
-  show Scientific = "Scientific"
-
 -- | May lose precision if the argument is too large.
 -- | For example, the fractional part of `9000000000000000.5` is unrecoverable.
 parseNumber :: Number -> NumberStyle
@@ -170,7 +179,7 @@ scientificToHugeNum n = HugeNum r where
                          Plus -> parseMinusPlus parsed.exponent parsed.base
                          Minus -> parseMinusMinus parsed.exponent parsed.base
 
-parseScientific :: Number -> _
+parseScientific :: Number -> { exponent :: Int, expSign :: Sign, base :: Array Char, sign :: Sign }
 parseScientific n = z where
   split = span (/= 'e') (toCharArray $ show n)
   base = filter (/= '.') split.init
@@ -213,8 +222,53 @@ fromNumber n = case parseNumber n of
                     Scientific -> scientificToHugeNum n
                     Integral -> integralToHugeNum n
 
+abs :: HugeNum -> HugeNum
+abs (HugeNum r) = HugeNum (r { sign = Plus })
+
+isNegative :: HugeNum -> Boolean
+isNegative (HugeNum { sign = Minus }) = true
+isNegative _ = false
+
+isPositive :: HugeNum -> Boolean
+isPositive (HugeNum { sign = Plus }) = true
+isPositive _ = false
+
+isZero :: HugeNum -> Boolean
+isZero (HugeNum r) = all (== _zero) r.digits
+
+min :: HugeNum -> HugeNum -> HugeNum
+min x y = if x < y then x else y
+
+max :: HugeNum -> HugeNum -> HugeNum
+max x y = if x > y then x else y
+
+addPlusPlus :: HugeNum -> HugeNum -> HugeNum
+addPlusPlus x y = HugeNum z where
+  eqv = equivalize { fst: x, snd: y }
+  r1 = rec eqv.fst
+  r2 = rec eqv.snd
+  r = zipWith addDigits (reverse r1.digits) (reverse r2.digits)
+  digits'' = foldl f (Tuple [] _zero) r
+  f :: Tuple (Array Digit) Digit -> Tuple Digit Digit -> Tuple (Array Digit) Digit
+  f (Tuple xs d) (Tuple d1 d2) = Tuple (fromJust (fromInt $ toInt d + toInt d2) : xs) d1
+  digits' = fst digits''
+  spillover = snd digits''
+  digits = if toInt spillover == 0
+              then digits'
+              else spillover : digits'
+  decimal = r1.decimal
+  z = { digits: digits, decimal: decimal, sign: Plus }
+
 {--
+
+addMinusMinus :: HugeNum -> HugeNum -> HugeNum
+addMinusMinus x y =
+  let sum = addPlusPlus x y
+
+
 addHugeNum :: HugeNum -> HugeNum -> HugeNum
+addHugeNum x y
+  | x < zeroHugeNum && 
 addHugeNum (HugeNum x) (HugeNum y) = HugeNum z where
   smalls :: Array Digit
   smalls = foldl f (pure _zero) (zipWith addDigits (reverse x.small) (reverse y.small))
@@ -240,6 +294,3 @@ until p f = go
   where
     go x | p x = x
          | otherwise = go (f x)
-
-isZero :: HugeNum -> Boolean
-isZero (HugeNum r) = all (== _zero) r.digits
