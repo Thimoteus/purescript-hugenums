@@ -1,9 +1,7 @@
 module Data.Digit
   ( Digit()
-  , fromInt
-  , toInt
-  , fromChar
-  , toChar
+  , fromInt , toInt
+  , fromChar , toChar
   , addDigits
   , _zero, _one, _two, _three, _four, _five, _six, _seven, _eight, _nine
   ) where

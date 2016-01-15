@@ -6,9 +6,16 @@ module Data.HugeNum
   , integerPart
   , fractionalPart
   , abs
+  , max
+  , min
+  , neg
   , isNegative
   , isPositive
-  , addPlusPlus
+  , isZero
+  , addHugeNum
+  , addPlusMinus
+  , multSmallNum
+  , scale
   ) where
 
 import Prelude
@@ -16,7 +23,8 @@ import Global (readFloat)
 
 import Data.String (toCharArray, fromCharArray, contains)
 import Data.Array (span, drop, take, mapMaybe, zipWith, length, filter, uncons,
-                  insertAt, replicate, dropWhile, reverse, (:))
+                  insertAt, replicate, dropWhile, takeWhile, reverse, (:), zip,
+                  null)
 import Data.Foldable (foldl, all)
 import Data.Maybe.Unsafe (fromJust)
 import Data.Int (round)
@@ -39,7 +47,7 @@ type HugeRec = { digits :: Array Digit, decimal :: Int, sign :: Sign }
 newtype HugeNum = HugeNum HugeRec
 
 instance showHugeNum :: Show HugeNum where
-  show = toString
+  show = ("HugeNum " ++) <<< toString <<< dropZeroes
 
 instance eqHugeNum :: Eq HugeNum where
   eq x y
@@ -58,11 +66,11 @@ rec (HugeNum r) = r
 
 compareHugeNum :: HugeNum -> HugeNum -> Ordering
 compareHugeNum x@(HugeNum r1) y@(HugeNum r2)
-  | x == y = EQ
-  | r1.decimal > r2.decimal = GT
-  | r1.decimal < r2.decimal = LT
   | r1.sign < r2.sign = LT
   | r1.sign > r2.sign = GT
+  | r1.decimal > r2.decimal = GT
+  | r1.decimal < r2.decimal = LT
+  | x == y = EQ
   | otherwise = z where
     dec = r1.decimal
     r = equivalize { fst: x, snd: y }
@@ -75,11 +83,17 @@ compareHugeNum x@(HugeNum r1) y@(HugeNum r2)
              x -> x
 
 dropZeroes :: HugeNum -> HugeNum
-dropZeroes (HugeNum r) = HugeNum z where
-  iPutMyThingDown = reverse (drop r.decimal r.digits)
-  flipIt = dropWhile (== _zero) iPutMyThingDown
-  andReverseIt = reverse flipIt
-  z = r { digits = take r.decimal r.digits ++ andReverseIt }
+dropZeroes = dropIntegralZeroes <<< dropFractionalZeroes where
+  dropFractionalZeroes (HugeNum r) = HugeNum z where
+    iPutMyThingDown = reverse (drop r.decimal r.digits)
+    flipIt = dropWhile (== _zero) iPutMyThingDown
+    andReverseIt = reverse flipIt
+    z = r { digits = take r.decimal r.digits ++ if null andReverseIt then [_zero] else andReverseIt }
+  dropIntegralZeroes (HugeNum r) = HugeNum z where
+    decimalMod = length (takeWhile (== _zero) r.digits)
+    digits = drop decimalMod r.digits
+    decimal = r.decimal - decimalMod
+    z = r { digits = digits, decimal = decimal }
 
 equivalize :: { fst:: HugeNum, snd :: HugeNum } -> { fst :: HugeNum, snd :: HugeNum }
 equivalize = integralize <<< fractionalize where
@@ -126,7 +140,7 @@ toString (HugeNum r) =
       sign = case r.sign of
                   Plus -> []
                   Minus -> ['-']
-   in "HugeNum " ++ fromCharArray (sign ++ numray)
+   in fromCharArray (sign ++ numray)
 
 zeroHugeNum :: HugeNum
 zeroHugeNum = HugeNum { digits: [_zero, _zero], decimal: 1 , sign: Plus }
@@ -242,6 +256,10 @@ min x y = if x < y then x else y
 max :: HugeNum -> HugeNum -> HugeNum
 max x y = if x > y then x else y
 
+neg :: HugeNum -> HugeNum
+neg (HugeNum r@{ sign = Minus }) = HugeNum (r { sign = Plus })
+neg (HugeNum r) = HugeNum (r { sign = Minus })
+
 addPlusPlus :: HugeNum -> HugeNum -> HugeNum
 addPlusPlus x y = HugeNum z where
   eqv = equivalize { fst: x, snd: y }
@@ -253,44 +271,64 @@ addPlusPlus x y = HugeNum z where
   f (Tuple xs d) (Tuple d1 d2) = Tuple (fromJust (fromInt $ toInt d + toInt d2) : xs) d1
   digits' = fst digits''
   spillover = snd digits''
-  digits = if toInt spillover == 0
-              then digits'
-              else spillover : digits'
-  decimal = r1.decimal
+  digitsDecimal = if toInt spillover == 0
+                     then Tuple digits' r1.decimal
+                     else Tuple (spillover : digits') (r1.decimal + 1)
+  digits = fst digitsDecimal
+  decimal = snd digitsDecimal
   z = { digits: digits, decimal: decimal, sign: Plus }
-
-{--
 
 addMinusMinus :: HugeNum -> HugeNum -> HugeNum
 addMinusMinus x y =
-  let sum = addPlusPlus x y
+  let z = rec (addPlusPlus x y)
+   in HugeNum (z { sign = Minus })
 
+addPlusMinus :: HugeNum -> HugeNum -> HugeNum
+addPlusMinus x y = HugeNum z where
+  eqv = equivalize { fst: x, snd: y }
+  r2 = rec $ max eqv.fst eqv.snd
+  r1 = rec $ min eqv.fst eqv.snd
+  r = zip (reverse r2.digits) (reverse r1.digits)
+  digits' = foldl f (Tuple [] _zero) r
+  f :: Tuple (Array Digit) Digit -> Tuple Digit Digit -> Tuple (Array Digit) Digit
+  f (Tuple xs d) (Tuple t b) =
+    let tint = toInt t - toInt d
+        bint = toInt b
+        diff' = tint - bint
+        diff = fromJust $ fromInt if diff' < 0 then diff' + 10 else diff'
+        spill = if diff' < 0 then _one else _zero
+     in Tuple (diff : xs) spill
+  digits = fst digits'
+  decimal = r1.decimal
+  z = { digits: digits, decimal: decimal, sign: Plus }
 
 addHugeNum :: HugeNum -> HugeNum -> HugeNum
 addHugeNum x y
-  | x < zeroHugeNum && 
-addHugeNum (HugeNum x) (HugeNum y) = HugeNum z where
-  smalls :: Array Digit
-  smalls = foldl f (pure _zero) (zipWith addDigits (reverse x.small) (reverse y.small))
-  bigs = foldl f (pure _zero) (zipWith addDigits (reverse x.big) (reverse y.big))
-  f :: Array Digit -> Tuple Digit Digit -> Array Digit
-  f xs (Tuple d0 d1) = 
+  | isZero x = y
+  | isZero y = x
+  | isPositive x && isPositive y = addPlusPlus x y
+  | isNegative x && isNegative y = addMinusMinus x y
+  | otherwise = z where
+    greaterMag = max (abs x) (abs y)
+    lesserMag = min (abs x) (abs y)
+    greater = max x y
+    lesser = min x y
+    z = if greater == greaterMag
+           then addPlusMinus greater lesser
+           else neg (addPlusMinus (abs greater) lesser)
 
-0.1234 + 0.9796
-=> [4,3,2,1] +* [6,9,7,9]
-=> [(1,0), (1, 2), (0, 9), (1, 0)]
-=> [0, (0, 1) + (1, 2), (0, 9), (1, 0)]
-=> [0, (1, 3), (0, 9), (1, 0)]
-=> [0, 3, (0, 1) + (0, 9), (1, 0)]
-=> [0, 3, (1, 0), (1, 0)]
-=> [0, 3, 0, (0, 1) + (1, 0)]
-=> [0, 3, 0, (1, 1)]
-=> [0, 3, 0, 1, 1]
-1.234e24
---}
+subHugeNum :: HugeNum -> HugeNum -> HugeNum
+subHugeNum x y = addHugeNum x (neg y)
 
-until :: forall a. (a -> Boolean) -> (a -> a) -> a -> a
-until p f = go
-  where
-    go x | p x = x
-         | otherwise = go (f x)
+scale :: Int -> HugeNum -> HugeNum
+scale = go zeroHugeNum where
+  go x 0 _ = x
+  go x n k = go (addHugeNum x k) (n - 1) k
+
+--multHugeNum :: HugeNum -> HugeNum -> HugeNum
+--multHugeNum x y = z where
+
+multSmallNum :: HugeNum -> HugeNum -> HugeNum
+multSmallNum (HugeNum { digits = [x, _] }) r2
+  | x == _zero = zeroHugeNum
+  | otherwise = scale (toInt x) r2
