@@ -11,6 +11,7 @@ module Data.HugeNum
   , isNegative
   , isPositive
   , isZero
+  , pow
   ) where
 
 import Prelude
@@ -22,7 +23,7 @@ import Data.Array (span, drop, take, mapMaybe, length, filter, uncons,
                   null)
 import Data.Foldable (foldl, all)
 import Data.Maybe.Unsafe (fromJust)
-import Data.Int (round)
+import Data.Int (round, odd)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Digit
 
@@ -50,7 +51,7 @@ timesSign Minus Minus = Plus
 timesSign _ _ = Minus
 
 instance showHugeNum :: Show HugeNum where
-  show = ("HugeNum " ++) <<< toString -- <<< dropZeroes
+  show = ("HugeNum " ++) <<< toString <<< dropZeroes
 
 instance eqHugeNum :: Eq HugeNum where
   eq x y
@@ -357,12 +358,16 @@ subHugeNum x y = plus x (neg y)
 
 -- | ## Multiplication
 
+-- | For any integral x with n digits in base B, x = x1 * B^m + x0 for all m and
+-- | x0 < B^m.
 type KRep = { exp :: Int, coeff :: Array Digit, const :: HugeNum }
 
+-- | Drop the _zeroes on the tail.
 takeMeatyParts :: Array Digit -> Array Digit
 takeMeatyParts arr =
   reverse (dropWhile (== _zero) (reverse arr))
 
+-- | Turn a `KRep` into a `HugeNum`.
 fromKRep :: KRep -> HugeNum
 fromKRep k = z where
   bm = { sign: Plus, digits: _one : replicate (k.exp + 1) _zero, decimal: k.exp + 1 }
@@ -370,6 +375,7 @@ fromKRep k = z where
   leftSummand = HugeNum { digits: prod, sign: Plus, decimal: bm.decimal + length k.coeff - 1 }
   z = plus leftSummand k.const
 
+-- | Turn a `HugeNum` into a `KRep`, given an exponent m for B^m.
 toKRep :: Int -> HugeNum -> KRep
 toKRep exp h@(HugeNum r) = z where
   bm = _one : replicate exp _zero
@@ -379,17 +385,21 @@ toKRep exp h@(HugeNum r) = z where
   k = plus h (neg leftSummand)
   z = { exp: exp, coeff: coeff, const: k }
 
+-- | Takes two HugeNums and calculates a suitable exponent m in B^m.
 getPowForKRep :: HugeNum -> HugeNum -> Int
 getPowForKRep x y = (`sub` 1) $ _.decimal $ rec $ min (abs x) (abs y)
 
+-- | Turns an array of digits into an integral HugeNum.
 arrayToHugeNum :: Array Digit -> HugeNum
 arrayToHugeNum xs =
   HugeNum { sign: Plus, digits: xs ++ [_zero], decimal: length xs }
 
+-- | Test for whether we can reach the base case of recursive multiplication.
 smallEnough :: HugeNum -> Boolean
 smallEnough (HugeNum { digits = [_, _], decimal = 1 }) = true
 smallEnough _ = false
 
+-- | Multiplying by a power of ten is easy. All we have to do is append _zeroes!
 timesPowOfTen :: Int -> HugeNum -> HugeNum
 timesPowOfTen n (HugeNum r) = z where
   newDecimal = r.decimal + n
@@ -399,6 +409,7 @@ timesPowOfTen n (HugeNum r) = z where
   newZeroes = replicate newZeroesLength _zero
   z = HugeNum { digits: r.digits ++ newZeroes, sign: r.sign, decimal: newDecimal }
 
+-- | Karatsuba multiplication.
 times :: HugeNum -> HugeNum -> HugeNum
 times r1 r2
   | timesSign (_.sign $ rec r1) (_.sign $ rec r2) == Minus = neg (times (abs r1) (abs r2))
@@ -424,22 +435,26 @@ times r1 r2
     z1Bm = timesPowOfTen exp z1
     z = plus (plus z2B2m z1Bm) z0
 
+-- | "Scalar" multiplication by an Int.
 scale :: Int -> HugeNum -> HugeNum
 scale = go zeroHugeNum where
   go x 0 _ = x
   go x n k = go (plus x k) (n - 1) k
 
+-- | The base case of recursive multiplication
 multSmallNum :: HugeNum -> HugeNum -> HugeNum
 multSmallNum (HugeNum { digits = [x, ze] }) r2
   | x == _zero = zeroHugeNum
   | otherwise = scale (toInt x) r2
 
+-- | Count how much information the fractional part of a HugeNum holds.
 meatyDecimals :: HugeNum -> Int
 meatyDecimals (HugeNum r) =
   let decimals = reverse $ drop r.decimal r.digits
       meaty = dropWhile (== _zero) decimals
    in length meaty
 
+-- | Moves the decimal place in a HugeNum so it has a trivial fractional part.
 makeHugeInteger :: HugeNum -> HugeNum
 makeHugeInteger (HugeNum r) = HugeNum z where
   digits' = reverse r.digits
@@ -449,12 +464,16 @@ makeHugeInteger (HugeNum r) = HugeNum z where
   sign = r.sign
   z = { digits: digits, decimal: decimal, sign: sign }
 
+-- | Test for whether a HugeNum has any non-_zero digits in its fractional part.
 trivialFraction :: HugeNum -> Boolean
 trivialFraction (HugeNum r) =
   let decimals = reverse $ drop r.decimal r.digits
       meaty = dropWhile (== _zero) decimals
    in null meaty
 
+-- | When multiplying two HugeNums and one has a nontrivial fractional part,
+-- | we first turn them into integral HugeNums, then calculate where the
+-- | decimal should be. 
 adjustDecimalForTriviality :: HugeNum -> HugeNum -> HugeNum -> HugeNum
 adjustDecimalForTriviality h1 h2 (HugeNum r3) = HugeNum r where
   digits = take (length r3.digits - 1) r3.digits
@@ -462,3 +481,13 @@ adjustDecimalForTriviality h1 h2 (HugeNum r3) = HugeNum r where
   decimal = length $ drop decimalMod $ reverse digits
   sign = Plus
   r = { digits: digits, decimal: decimal, sign: sign }
+
+-- | Raise a HugeNum to an integer power.
+pow :: HugeNum -> Int -> HugeNum
+pow r 1 = r
+pow r n =
+  let c = r * r
+      ans = pow c (n / 2)
+   in if odd n
+         then r * ans
+         else ans

@@ -31,6 +31,8 @@ false
 HugeNum 900000000000000001.0
 ```
 
+Addition is implemented using an elementary-school method. Multiplication follows [Karatsuba](https://en.wikipedia.org/wiki/Karatsuba_algorithm).
+
 ## installation
 
 `bower install purescript-hugenums`
