@@ -2,7 +2,6 @@ module Data.HugeNum
   ( HugeNum()
   , fromNumber
   , toNumber
-  , lessPrecise
   , integerPart
   , fractionalPart
   , abs
@@ -12,9 +11,6 @@ module Data.HugeNum
   , isNegative
   , isPositive
   , isZero
-  , plus
-  , times
-  , multSmallNum, scale, dropZeroes, takeMeatyParts, rec, Sign(), KRep(), fromKRep, toKRep, smallEnough, timesPowOfTen, arrayToHugeNum, getPowForKRep, equivalize, digitwiseAdd, removeFrontZeroes, adjustDecimalForFrontZeroes, makeHugeInteger, trivialFraction
   ) where
 
 import Prelude
