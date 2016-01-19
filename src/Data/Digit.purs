@@ -2,7 +2,6 @@ module Data.Digit
   ( Digit()
   , fromInt , toInt
   , fromChar , toChar
-  , addDigits
   , _zero, _one, _two, _three, _four, _five, _six, _seven, _eight, _nine
   ) where
 
@@ -38,12 +37,6 @@ fromChar c = let code = toCharCode c
 
 toChar :: Digit -> Char
 toChar (Digit c) = fromCharCode (c + 48)
-
-addDigits :: Digit -> Digit -> Tuple Digit Digit
-addDigits (Digit n) (Digit m) =
-  case fromInt (n + m) of
-       Just d -> Tuple _zero d
-       Nothing -> Tuple _one (Digit (n + m - 10))
 
 _zero :: Digit
 _zero = Digit 0
