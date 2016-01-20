@@ -1,4 +1,4 @@
-# purescript-hugenums
+# purescript-hugenums [![Build Status](https://travis-ci.org/Thimoteus/purescript-hugenums.svg?branch=master)](https://travis-ci.org/Thimoteus/purescript-hugenums)
 
 This is a library for working with numbers of arbitrarily finite size.
 
