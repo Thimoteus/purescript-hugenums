@@ -12,7 +12,6 @@ module Data.HugeNum
   , isPositive
   , isZero
   , pow
-  , rec, Sign(..), equivalize, digitwiseSubtract, unsafeRemoveFrontZeroes, dropZeroes, adjustDecimalForFrontZeroes, timesSign, trivialFraction, adjustDecimalForTriviality, makeHugeInteger, meatyDecimals
   ) where
 
 import Prelude
