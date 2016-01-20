@@ -12,6 +12,7 @@ module Data.HugeNum
   , isPositive
   , isZero
   , pow
+  , rec, Sign(..), equivalize, digitwiseSubtract, unsafeRemoveFrontZeroes, dropZeroes, adjustDecimalForFrontZeroes, timesSign, trivialFraction, adjustDecimalForTriviality, makeHugeInteger, meatyDecimals
   ) where
 
 import Prelude
@@ -24,7 +25,9 @@ import Data.Array (span, drop, take, mapMaybe, length, filter, uncons,
 import Data.Foldable (foldl, all)
 import Data.Maybe.Unsafe (fromJust)
 import Data.Int (round, odd)
+import Math as Math
 import Data.Tuple (Tuple(..), fst, snd)
+import Test.QuickCheck.Arbitrary (Arbitrary, arbitrary)
 import Data.Digit
 
 -- | ##Type definitions
@@ -34,6 +37,9 @@ type HugeRec = { digits :: Array Digit, decimal :: Int, sign :: Sign }
 newtype HugeNum = HugeNum HugeRec
 
 -- | ##Instances
+
+instance arbHugeNum :: Arbitrary HugeNum where
+  arbitrary = fromNumber <<< Math.round <<< (* 1000.0) <$> arbitrary
 
 instance eqSign :: Eq Sign where
   eq Plus Plus = true
@@ -56,10 +62,28 @@ instance showHugeNum :: Show HugeNum where
 instance eqHugeNum :: Eq HugeNum where
   eq x y
     | isZero x && isZero y = true
-    | otherwise = strictlyEqual x y
+    | otherwise = strictlyEqual (dropZeroes x) (dropZeroes y)
 
 instance ordHugeNum :: Ord HugeNum where
   compare = compareHugeNum
+
+instance semiringHugeNum :: Semiring HugeNum where
+  one = oneHugeNum
+  mul = times
+  zero = zeroHugeNum
+  add = plus
+
+instance ringHugeNum :: Ring HugeNum where
+  sub r1 r2 = r1 + neg r2
+
+-- | ## Utility functions
+
+rec :: HugeNum -> HugeRec
+rec (HugeNum r) = r
+
+strictlyEqual :: HugeNum -> HugeNum -> Boolean
+strictlyEqual (HugeNum r1) (HugeNum r2) =
+  r1.decimal == r2.decimal && r1.digits == r2.digits && r1.sign == r2.sign
 
 compareHugeNum :: HugeNum -> HugeNum -> Ordering
 compareHugeNum x@(HugeNum r1) y@(HugeNum r2)
@@ -79,33 +103,21 @@ compareHugeNum x@(HugeNum r1) y@(HugeNum r2)
              EQ -> compare (drop dec x'.digits) (drop dec y'.digits)
              x -> x
 
-instance semiringHugeNum :: Semiring HugeNum where
-  one = oneHugeNum
-  mul = times
-  zero = zeroHugeNum
-  add = plus
-
--- | ## Utility functions
-
-rec :: HugeNum -> HugeRec
-rec (HugeNum r) = r
-
-strictlyEqual :: HugeNum -> HugeNum -> Boolean
-strictlyEqual (HugeNum r1) (HugeNum r2) =
-  r1.decimal == r2.decimal && r1.digits == r2.digits && r1.sign == r2.sign
-
 dropZeroes :: HugeNum -> HugeNum
 dropZeroes = dropIntegralZeroes <<< dropFractionalZeroes where
   dropFractionalZeroes (HugeNum r) = HugeNum z where
-    iPutMyThingDown = reverse (drop r.decimal r.digits)
-    flipIt = dropWhile (== _zero) iPutMyThingDown
-    andReverseIt = reverse flipIt
-    z = r { digits = take r.decimal r.digits ++ if null andReverseIt then [_zero] else andReverseIt }
+    fractionalDigits = reverse (drop r.decimal r.digits)
+    meatyFraction = dropWhile (== _zero) fractionalDigits
+    digits = reverse meatyFraction
+    z = r { digits = take r.decimal r.digits ++ if null digits then [_zero] else digits }
   dropIntegralZeroes (HugeNum r) = HugeNum z where
-    decimalMod = length (takeWhile (== _zero) r.digits)
-    digits = drop decimalMod r.digits
-    decimal = r.decimal - decimalMod
-    z = r { digits = digits, decimal = decimal }
+    integralPart = take r.decimal r.digits
+    zeroes = takeWhile (== _zero) integralPart
+    digits = if length integralPart == length zeroes
+                then [_zero]
+                else drop (length zeroes) integralPart
+    decimal = length digits
+    z = r { digits = digits ++ drop r.decimal r.digits, decimal = decimal }
 
 equivalize :: { fst:: HugeNum, snd :: HugeNum } -> { fst :: HugeNum, snd :: HugeNum }
 equivalize = integralize <<< fractionalize where
@@ -160,7 +172,7 @@ zeroHugeNum :: HugeNum
 zeroHugeNum = HugeNum { digits: [_zero, _zero], decimal: 1 , sign: Plus }
 
 oneHugeNum :: HugeNum
-oneHugeNum = HugeNum { digits: [_one, _one], decimal: 1, sign: Plus }
+oneHugeNum = HugeNum { digits: [_one, _zero], decimal: 1, sign: Plus }
 
 googol :: HugeNum
 googol = HugeNum { digits: _one : replicate 101 _zero, decimal: 101, sign: Plus }
@@ -178,7 +190,7 @@ parseNumber n
 
 floatToHugeNum :: Number -> HugeNum
 floatToHugeNum n = HugeNum r where
-  pos = n > zero
+  pos = n >= zero
   split = if pos
              then span (/= '.') (toCharArray $ show n)
              else span (/= '.') (drop 1 $ toCharArray $ show n)
@@ -292,7 +304,7 @@ addPlusPlus x y = dropZeroes (HugeNum z) where
   digits'' = foldl digitwiseAdd (Tuple [] _zero) r
   spill = snd digits''
   digits' = fst digits''
-  digits = removeFrontZeroes $ spill : digits'
+  digits = unsafeRemoveFrontZeroes $ spill : digits'
   decimal = adjustDecimalForFrontZeroes (spill : digits') (r1.decimal + 1)
   z = { digits: digits, decimal: decimal, sign: Plus }
 
@@ -310,33 +322,39 @@ addMinusMinus x y =
   let z = rec (addPlusPlus x y)
    in HugeNum (z { sign = Minus })
 
+-- | Assumes 0 <= x, 0 <= abs y <= x, y <= 0
 addPlusMinus :: HugeNum -> HugeNum -> HugeNum
-addPlusMinus x y = dropZeroes (HugeNum z) where
+addPlusMinus x y = (HugeNum z) where
   eqv = equivalize { fst: x, snd: y }
   r2 = rec $ max eqv.fst eqv.snd
   r1 = rec $ min eqv.fst eqv.snd
   r = zip (reverse r2.digits) (reverse r1.digits)
-  digits' = foldl f (Tuple [] _zero) r
-  f :: Tuple (Array Digit) Digit -> Tuple Digit Digit -> Tuple (Array Digit) Digit
-  f (Tuple xs d) (Tuple t b) =
-    let tint = toInt t - toInt d
-        bint = toInt b
-        diff' = tint - bint
-        diff = fromJust $ fromInt if diff' < 0 then diff' + 10 else diff'
-        spill = if diff' < 0 then _one else _zero
-     in Tuple (diff : xs) spill
-  digits = removeFrontZeroes $ fst digits'
-  decimal = adjustDecimalForFrontZeroes (fst digits') r1.decimal
+  digits'' = foldl digitwiseSubtract (Tuple [] _zero) r -- check
+  integralDigits'' = take r1.decimal $ fst digits''
+  fractionalDigits = drop r1.decimal $ fst digits''
+  integralDigits' = unsafeRemoveFrontZeroes integralDigits''
+  integralDigits = if null integralDigits' then [_zero] else integralDigits' -- check
+  decimal = adjustDecimalForFrontZeroes (fst digits'') r1.decimal
+  digits = integralDigits ++ fractionalDigits
   z = { digits: digits, decimal: decimal, sign: Plus }
 
-removeFrontZeroes :: Array Digit -> Array Digit
-removeFrontZeroes = dropWhile (== _zero)
+digitwiseSubtract :: Tuple (Array Digit) Digit -> Tuple Digit Digit -> Tuple (Array Digit) Digit
+digitwiseSubtract (Tuple xs d) (Tuple t b) =
+  let tint = toInt t - toInt d
+      bint = toInt b
+      diff' = tint - bint
+      diff = fromJust $ fromInt if diff' < 0 then diff' + 10 else diff'
+      spill = if diff' < 0 then _one else _zero
+   in Tuple (diff : xs) spill
+
+unsafeRemoveFrontZeroes :: Array Digit -> Array Digit
+unsafeRemoveFrontZeroes = dropWhile (== _zero)
 
 adjustDecimalForFrontZeroes :: Array Digit -> Int -> Int
 adjustDecimalForFrontZeroes xs oldDec =
-  let newDigits = removeFrontZeroes xs
-      diff = length xs - length newDigits
-   in oldDec - diff
+  let newDigits' = unsafeRemoveFrontZeroes $ take oldDec xs
+      newDigits = if null newDigits' then [_zero] else newDigits'
+   in length newDigits
 
 plus :: HugeNum -> HugeNum -> HugeNum
 plus x y
@@ -351,7 +369,7 @@ plus x y
     lesser = min x y
     z = if greater == greaterMag
            then addPlusMinus greater lesser
-           else neg (addPlusMinus (abs greater) lesser)
+           else neg (addPlusMinus greaterMag lesserMag)
 
 subHugeNum :: HugeNum -> HugeNum -> HugeNum
 subHugeNum x y = plus x (neg y)
@@ -418,14 +436,14 @@ times r1 r2
   | smallEnough r1 = multSmallNum r1 r2
   | smallEnough r2 = multSmallNum r2 r1
   | otherwise = z where
-    exp = getPowForKRep r1 r2 :: Int
-    k1 = toKRep exp r1 :: KRep
-    k2 = toKRep exp r2 :: KRep
-    x0 = k1.const :: HugeNum
-    y0 = k2.const :: HugeNum
-    x1 = k1.coeff :: Array Digit
-    y1 = k2.coeff :: Array Digit
-    z0 = times x0 y0 :: HugeNum
+    exp = getPowForKRep r1 r2
+    k1 = toKRep exp r1
+    k2 = toKRep exp r2
+    x0 = k1.const
+    y0 = k2.const
+    x1 = k1.coeff
+    y1 = k2.coeff
+    z0 = times x0 y0
     z2 = times (arrayToHugeNum x1) (arrayToHugeNum y1)
     z1 = let leftFactor = plus (arrayToHugeNum x1) x0
              rightFactor = plus (arrayToHugeNum y1) y0
@@ -454,9 +472,15 @@ meatyDecimals (HugeNum r) =
       meaty = dropWhile (== _zero) decimals
    in length meaty
 
+isHugeInteger :: HugeNum -> Boolean
+isHugeInteger (HugeNum r) = all (== _zero) $ drop r.decimal r.digits
+
 -- | Moves the decimal place in a HugeNum so it has a trivial fractional part.
 makeHugeInteger :: HugeNum -> HugeNum
-makeHugeInteger (HugeNum r) = HugeNum z where
+makeHugeInteger r = if isHugeInteger r then r else makeHugeInteger' r
+
+makeHugeInteger' :: HugeNum -> HugeNum
+makeHugeInteger' (HugeNum r) = HugeNum z where
   digits' = reverse r.digits
   meaty = dropWhile (== _zero) digits'
   decimal = length meaty
@@ -473,7 +497,7 @@ trivialFraction (HugeNum r) =
 
 -- | When multiplying two HugeNums and one has a nontrivial fractional part,
 -- | we first turn them into integral HugeNums, then calculate where the
--- | decimal should be. 
+-- | decimal should be.
 adjustDecimalForTriviality :: HugeNum -> HugeNum -> HugeNum -> HugeNum
 adjustDecimalForTriviality h1 h2 (HugeNum r3) = HugeNum r where
   digits = take (length r3.digits - 1) r3.digits

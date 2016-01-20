@@ -1,14 +1,20 @@
 module Test.Main where
 
 import Prelude
-import Test.Unit (test, runTest)
-import Test.Unit.QuickCheck (quickCheck)
-import Test.QuickCheck (Result(), (===))
+import Control.Monad.Eff.Console (log)
+import Test.QuickCheck.Laws.Data.Eq
+import Test.QuickCheck.Laws.Data.Ord
+import Test.QuickCheck.Laws.Data.Semiring
+import Test.QuickCheck.Laws.Data.Ring
+import Type.Proxy (Proxy(..))
 import Data.HugeNum
 
-theCommutativeProperty :: Int -> Int -> Result
-theCommutativeProperty a b = (a + b) === (b + a)
+prxHugeNum :: Proxy HugeNum
+prxHugeNum = Proxy
 
-main = runTest do
-  test "the commutative property" do
-    quickCheck theCommutativeProperty
+main = do
+  log "Checking HugeNum instances...\n"
+  checkEq prxHugeNum
+  checkOrd prxHugeNum
+  checkSemiring prxHugeNum
+  checkRing prxHugeNum
