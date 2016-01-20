@@ -11,6 +11,7 @@ module Data.HugeNum
   , isNegative
   , isPositive
   , isZero
+  , googol
   , pow
   ) where
 
