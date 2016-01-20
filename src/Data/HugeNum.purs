@@ -13,6 +13,7 @@ module Data.HugeNum
   , isZero
   , googol
   , pow
+  , adjustDecimalForTriviality, makeHugeInteger, trivialFraction, meatyDecimals, rec, Sign(..)
   ) where
 
 import Prelude
@@ -479,14 +480,22 @@ isHugeInteger (HugeNum r) = all (== _zero) $ drop r.decimal r.digits
 makeHugeInteger :: HugeNum -> HugeNum
 makeHugeInteger r = if isHugeInteger r then r else makeHugeInteger' r
 
+{--
 makeHugeInteger' :: HugeNum -> HugeNum
 makeHugeInteger' (HugeNum r) = HugeNum z where
   digits' = reverse r.digits
   meaty = dropWhile (== _zero) digits'
-  decimal = length meaty
-  digits = reverse meaty ++ [_zero]
+  decimal = length meaty -- here
+  digits = unsafeRemoveFrontZeroes (reverse meaty) ++ [_zero]
   sign = r.sign
   z = { digits: digits, decimal: decimal, sign: sign }
+  --}
+-- | Assumes a nontrivial fractional component
+makeHugeInteger' :: HugeNum -> HugeNum
+makeHugeInteger' (HugeNum r) = HugeNum z where
+  digits = unsafeRemoveFrontZeroes r.digits ++ [_zero]
+  decimal = length digits - 1
+  z = r { digits = digits, decimal = decimal }
 
 -- | Test for whether a HugeNum has any non-_zero digits in its fractional part.
 trivialFraction :: HugeNum -> Boolean
@@ -515,3 +524,10 @@ pow r n =
    in if odd n
          then r * ans
          else ans
+
+-- | Division
+
+--newton :: HugeNum -> HugeNum
+--newton = go 0 where
+  --go 10 x = x
+  --go n x = 
