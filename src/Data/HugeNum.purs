@@ -1,9 +1,24 @@
-module Data.HugeNum where
+module Data.HugeNum
+  ( HugeNum()
+  , fromNumber
+  , toNumber
+  , integerPart
+  , fractionalPart
+  , abs
+  , max
+  , min
+  , neg
+  , isNegative
+  , isPositive
+  , isZero
+  , googol
+  , pow
+  ) where
 
 import Prelude
 import Global (readFloat)
 
-import Data.String (toCharArray, fromCharArray, contains)
+import Data.String (toCharArray, contains)
 import Data.Char (toString) as Char
 import Data.List (span, drop, take, mapMaybe, length, filter, uncons,
                  insertAt, dropWhile, takeWhile, reverse, (:), zip,
@@ -459,7 +474,6 @@ multSmallNum :: HugeNum -> HugeNum -> HugeNum
 multSmallNum (HugeNum r) r2 =
   case uncons r.digits of
        Just result -> if result.head == _zero then zeroHugeNum else scale (toInt result.head) r2
-       Nothing -> googol
 
 -- | Count how much information the fractional part of a HugeNum holds.
 meatyDecimals :: HugeNum -> Int
@@ -513,9 +527,10 @@ pow r n =
          else ans
 
 -- | Division
-
+{--
 newton :: HugeNum -> HugeNum
 newton = go 4 where
   go 0 x = truncate 2 $ newtonInit x
   go n x = (go (n - 1) x) * (fromNumber 2.0 - x * go (n - 1) x)
+  --}
   -- x_i = x_i-1 * (2 - b * x_i-1)
