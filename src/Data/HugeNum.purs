@@ -161,7 +161,7 @@ integerPart (HugeNum r) =
 
 fractionalPart :: HugeNum -> HugeNum
 fractionalPart (HugeNum r) =
-  HugeNum (r { digits = pure _zero ++ drop r.decimal r.digits })
+  HugeNum (r { digits = _zero : drop r.decimal r.digits })
 
 -- | May lose precision if the argument is too large.
 toNumber :: HugeNum -> Number
