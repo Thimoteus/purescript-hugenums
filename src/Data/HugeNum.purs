@@ -1,19 +1,4 @@
-module Data.HugeNum
-  ( HugeNum()
-  , fromNumber
-  , toNumber
-  , integerPart
-  , fractionalPart
-  , abs
-  , max
-  , min
-  , neg
-  , isNegative
-  , isPositive
-  , isZero
-  , googol
-  , pow
-  ) where
+module Data.HugeNum where
 
 import Prelude
 import Global (readFloat)
@@ -60,7 +45,7 @@ timesSign Minus Minus = Plus
 timesSign _ _ = Minus
 
 instance showHugeNum :: Show HugeNum where
-  show = ("HugeNum " ++) <<< toString <<< dropZeroes
+  show = ("HugeNum " ++) <<< toString -- <<< dropZeroes
 
 instance eqHugeNum :: Eq HugeNum where
   eq x y
@@ -80,6 +65,13 @@ instance ringHugeNum :: Ring HugeNum where
   sub r1 r2 = r1 + neg r2
 
 -- | ## Utility functions
+
+truncate :: Int -> HugeNum -> HugeNum
+truncate n (HugeNum r) = HugeNum z where
+  integral = take r.decimal r.digits
+  fractional = drop r.decimal r.digits
+  newFractional = take n fractional
+  z = r { digits = integral ++ newFractional }
 
 rec :: HugeNum -> HugeRec
 rec (HugeNum r) = r
@@ -502,8 +494,10 @@ trivialFraction (HugeNum r) =
 -- | decimal should be.
 adjustDecimalForTriviality :: HugeNum -> HugeNum -> HugeNum -> HugeNum
 adjustDecimalForTriviality h1 h2 (HugeNum r3) = HugeNum r where
-  digits = take (length r3.digits - 1) r3.digits
+  digitsLength = length r3.digits - 1
+  digits' = take digitsLength r3.digits -- r3 is always an integer-like representation of h1 * h2
   decimalMod = meatyDecimals h1 + meatyDecimals h2
+  digits = replicate (decimalMod - digitsLength + 1) _zero ++ digits'
   decimal = length $ drop decimalMod $ reverse digits
   sign = Plus
   r = { digits: digits, decimal: decimal, sign: sign }
@@ -522,6 +516,6 @@ pow r n =
 
 newton :: HugeNum -> HugeNum
 newton = go 4 where
-  go 0 _ = fromNumber 0.01
+  go 0 x = truncate 2 $ newtonInit x
   go n x = (go (n - 1) x) * (fromNumber 2.0 - x * go (n - 1) x)
   -- x_i = x_i-1 * (2 - b * x_i-1)
