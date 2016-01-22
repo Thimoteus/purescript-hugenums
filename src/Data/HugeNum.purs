@@ -1,5 +1,6 @@
 module Data.HugeNum
   ( HugeNum()
+  , fromString
   , fromNumber
   , toNumber
   , integerPart
@@ -13,6 +14,7 @@ module Data.HugeNum
   , isZero
   , googol
   , pow
+  , truncate
   ) where
 
 import Prelude
@@ -20,9 +22,10 @@ import Global (readFloat)
 
 import Data.String (toCharArray, contains)
 import Data.Char (toString) as Char
-import Data.List (span, drop, take, mapMaybe, length, filter, uncons,
-                 insertAt, dropWhile, takeWhile, reverse, (:), zip,
-                 null, List(Nil), replicate, fromFoldable)
+import Data.List (span, drop, take, mapMaybe, length, filter, uncons, head,
+                 insertAt, dropWhile, takeWhile, reverse, (:), zip, deleteAt,
+                 null, List(Nil), replicate, fromFoldable, elemIndex)
+import Data.Traversable (sequence)
 import Data.Foldable (foldl, all, foldMap)
 import Data.Maybe (Maybe(..))
 import Data.Maybe.Unsafe (fromJust)
@@ -60,7 +63,7 @@ timesSign Minus Minus = Plus
 timesSign _ _ = Minus
 
 instance showHugeNum :: Show HugeNum where
-  show = ("HugeNum " ++) <<< toString -- <<< dropZeroes
+  show = ("HugeNum " ++) <<< toString <<< dropZeroes
 
 instance eqHugeNum :: Eq HugeNum where
   eq x y
@@ -80,13 +83,6 @@ instance ringHugeNum :: Ring HugeNum where
   sub r1 r2 = r1 + neg r2
 
 -- | ## Utility functions
-
-truncate :: Int -> HugeNum -> HugeNum
-truncate n (HugeNum r) = HugeNum z where
-  integral = take r.decimal r.digits
-  fractional = drop r.decimal r.digits
-  newFractional = take n fractional
-  z = r { digits = integral ++ newFractional }
 
 rec :: HugeNum -> HugeRec
 rec (HugeNum r) = r
@@ -113,6 +109,7 @@ compareHugeNum x@(HugeNum r1) y@(HugeNum r2)
              EQ -> compare (drop dec x'.digits) (drop dec y'.digits)
              x -> x
 
+-- | Drops leading and trailing _zeroes.
 dropZeroes :: HugeNum -> HugeNum
 dropZeroes = dropIntegralZeroes <<< dropFractionalZeroes where
   dropFractionalZeroes (HugeNum r) = HugeNum z where
@@ -129,6 +126,8 @@ dropZeroes = dropIntegralZeroes <<< dropFractionalZeroes where
     decimal = length digits
     z = r { digits = digits ++ drop r.decimal r.digits, decimal = decimal }
 
+-- | Adds _zeroes where necessary to make two HugeNums have the same number of
+-- | digits and the same decimal place.
 equivalize :: { fst:: HugeNum, snd :: HugeNum } -> { fst :: HugeNum, snd :: HugeNum }
 equivalize = integralize <<< fractionalize where
   fractionalize { fst = x@(HugeNum r1), snd = y@(HugeNum r2) }
@@ -151,18 +150,12 @@ equivalize = integralize <<< fractionalize where
       lesser' = lesser { digits = zeroes ++ lesser.digits, decimal = greater.decimal }
       z = { fst: HugeNum lesser', snd: HugeNum greater }
 
+-- | Check whether a HugeNum has fewer significant fractional digits than another.
 lessPrecise :: HugeNum -> HugeNum -> Boolean
 lessPrecise (HugeNum r1) (HugeNum r2) =
   length (drop r1.decimal r1.digits) < length (drop r2.decimal r2.digits)
 
-integerPart :: HugeNum -> HugeNum
-integerPart (HugeNum r) =
-  HugeNum (r { digits = take r.decimal r.digits ++ pure _zero})
-
-fractionalPart :: HugeNum -> HugeNum
-fractionalPart (HugeNum r) =
-  HugeNum (r { digits = _zero : drop r.decimal r.digits })
-
+-- | Creates a HugeNum from a Number.
 -- | May lose precision if the argument is too large.
 toNumber :: HugeNum -> Number
 toNumber = readFloat <<< toString
@@ -176,20 +169,28 @@ toString (HugeNum r) =
                   Minus -> pure '-' :: List Char
    in foldMap Char.toString (sign ++ numray)
 
--- | Specific HugeNums
+-- | Create a HugeNum from a String.
+-- | Strings should be in the form of Purescript Numbers. For example,
+-- | fromString "123.456" => Just (HugeNum 123.456)
+fromString :: String -> Maybe HugeNum
+fromString s = do
+  let charlist = fromFoldable $ toCharArray s
+  leadingChar <- head charlist
+  let signDigits = case leadingChar of
+                  '-' -> { sign: Minus, digits: drop 1 charlist }
+                  _ -> { sign: Plus, digits: charlist }
+  decimal <- elemIndex '.' signDigits.digits
+  newCharlist <- deleteAt decimal signDigits.digits
+  digits <- sequence $ map fromChar newCharlist
+  pure $ HugeNum { sign: signDigits.sign, decimal: decimal, digits: digits }
 
-zeroHugeNum :: HugeNum
-zeroHugeNum = HugeNum { digits: _zero : _zero : Nil, decimal: 1, sign: Plus }
+-- | Create a HugeNum from a Number.
 
-oneHugeNum :: HugeNum
-oneHugeNum = HugeNum { digits: _one : _zero : Nil, decimal: 1, sign: Plus }
-
-googol :: HugeNum
-googol = HugeNum { digits: _one : replicate 101 _zero, decimal: 101, sign: Plus }
-
--- | Number -> HugeNum
-
+-- | Numbers have three different string representations in Javascript.
+-- | Floats look like "123.456"; Scientific look like "-3.34e+56" and
+-- | Integrals look like "9000000000000000000".
 data NumberStyle = Float | Integral | Scientific
+
 -- | May lose precision if the argument is too large.
 -- | For example, the fractional part of `9000000000000000.5` is unrecoverable.
 parseNumber :: Number -> NumberStyle
@@ -279,6 +280,24 @@ fromNumber n = case parseNumber n of
 
 -- | ## Miscellaneous easily-defined functions
 
+-- | Limits the number of digits past the decimal.
+truncate :: Int -> HugeNum -> HugeNum
+truncate n (HugeNum r) = HugeNum z where
+  integral = take r.decimal r.digits
+  fractional = drop r.decimal r.digits
+  newFractional = take n fractional
+  z = r { digits = integral ++ newFractional }
+
+-- | Returns the integer part of a HugeNum. Does the same as flooring.
+integerPart :: HugeNum -> HugeNum
+integerPart (HugeNum r) =
+  HugeNum (r { digits = take r.decimal r.digits ++ pure _zero})
+
+-- | Returns the fractional part of a HugeNum.
+fractionalPart :: HugeNum -> HugeNum
+fractionalPart (HugeNum r) =
+  HugeNum (r { digits = _zero : drop r.decimal r.digits })
+
 abs :: HugeNum -> HugeNum
 abs (HugeNum r) = HugeNum (r { sign = Plus })
 
@@ -302,6 +321,17 @@ max x y = if x > y then x else y
 neg :: HugeNum -> HugeNum
 neg (HugeNum r@{ sign = Minus }) = HugeNum (r { sign = Plus })
 neg (HugeNum r) = HugeNum (r { sign = Minus })
+
+-- | Specific HugeNums
+
+zeroHugeNum :: HugeNum
+zeroHugeNum = HugeNum { digits: _zero : _zero : Nil, decimal: 1, sign: Plus }
+
+oneHugeNum :: HugeNum
+oneHugeNum = HugeNum { digits: _one : _zero : Nil, decimal: 1, sign: Plus }
+
+googol :: HugeNum
+googol = HugeNum { digits: _one : replicate 101 _zero, decimal: 101, sign: Plus }
 
 -- | ## Addition
 
