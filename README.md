@@ -21,7 +21,7 @@ true
 In this library, correctness is prioritized above all else:
 
 ```
-> import Data.HugeNum 
+> import Data.HugeNum
 > let x = fromNumber 900000000000000000.0
 > let y = fromNumber 1.0
 > x + y == x
@@ -32,6 +32,10 @@ HugeNum 900000000000000001.0
 ```
 
 Addition is implemented using an elementary-school method. Multiplication follows [Karatsuba](https://en.wikipedia.org/wiki/Karatsuba_algorithm).
+
+## integers
+
+There is also a newtype for integral values in `Data.HugeInt`.
 
 ## installation
 

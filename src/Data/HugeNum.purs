@@ -5,6 +5,8 @@ module Data.HugeNum
   , toNumber
   , integerPart
   , fractionalPart
+  , numOfIntegral
+  , numOfFractional
   , abs
   , max
   , min
@@ -12,6 +14,9 @@ module Data.HugeNum
   , isNegative
   , isPositive
   , isZero
+  , floor
+  , ceil
+  , round
   , googol
   , pow
   , truncate
@@ -29,7 +34,8 @@ import Data.Traversable (sequence)
 import Data.Foldable (foldl, all, foldMap)
 import Data.Maybe (Maybe(..))
 import Data.Maybe.Unsafe (fromJust)
-import Data.Int (round, odd)
+import Data.Int (odd)
+import Data.Int (round) as Int
 import Math as Math
 import Data.Monoid (mempty)
 import Data.Tuple (Tuple(..), fst, snd)
@@ -63,7 +69,7 @@ timesSign Minus Minus = Plus
 timesSign _ _ = Minus
 
 instance showHugeNum :: Show HugeNum where
-  show = ("HugeNum " ++) <<< toString <<< dropZeroes
+  show = ("HugeNum " ++) <<< toString -- <<< dropZeroes
 
 instance eqHugeNum :: Eq HugeNum where
   eq x y
@@ -170,8 +176,8 @@ toString (HugeNum r) =
    in foldMap Char.toString (sign ++ numray)
 
 -- | Create a HugeNum from a String.
--- | Strings should be in the form of Purescript Numbers. For example,
--- | fromString "123.456" => Just (HugeNum 123.456)
+-- | Strings should be in the form of a Purescript `Number`. For example,
+-- | `fromString "123.456" => Just (HugeNum 123.456)`
 fromString :: String -> Maybe HugeNum
 fromString s = do
   let charlist = fromFoldable $ toCharArray s
@@ -244,7 +250,7 @@ parseScientific n = z where
   expSign = case signSplit.head of
                  '+' -> Plus
                  _ -> Minus
-  exponent = round $ readFloat $ foldMap Char.toString $ signSplit.tail
+  exponent = Int.round $ readFloat $ foldMap Char.toString $ signSplit.tail
   z = { exponent: exponent, expSign: expSign, base: base, sign: sign }
 
 parsePlusPlus :: Int -> List Char -> HugeRec
@@ -278,8 +284,6 @@ fromNumber n = case parseNumber n of
                     Scientific -> scientificToHugeNum n
                     Integral -> integralToHugeNum n
 
--- | ## Miscellaneous easily-defined functions
-
 -- | Limits the number of digits past the decimal.
 truncate :: Int -> HugeNum -> HugeNum
 truncate n (HugeNum r) = HugeNum z where
@@ -288,10 +292,30 @@ truncate n (HugeNum r) = HugeNum z where
   newFractional = take n fractional
   z = r { digits = integral ++ newFractional }
 
--- | Returns the integer part of a HugeNum. Does the same as flooring.
+numOfIntegral :: HugeNum -> Int
+numOfIntegral (HugeNum r) = r.decimal
+
+numOfFractional :: HugeNum -> Int
+numOfFractional (HugeNum r) = length r.digits - r.decimal
+
+-- | Returns the integer part of a HugeNum.
 integerPart :: HugeNum -> HugeNum
 integerPart (HugeNum r) =
   HugeNum (r { digits = take r.decimal r.digits ++ pure _zero})
+
+floor :: HugeNum -> HugeNum
+floor h | isPositive h = integerPart h
+        | isZero h = zero
+        | otherwise = integerPart h - one
+
+ceil :: HugeNum -> HugeNum
+ceil h | isNegative h = integerPart h
+       | isZero h = zero
+       | otherwise = integerPart h + one
+
+round :: HugeNum -> HugeNum
+round h | abs (h - floor h) < abs (ceil h - h) = floor h
+        | otherwise = ceil h
 
 -- | Returns the fractional part of a HugeNum.
 fractionalPart :: HugeNum -> HugeNum
