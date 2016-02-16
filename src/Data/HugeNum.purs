@@ -22,7 +22,7 @@ module Data.HugeNum
   , truncate
   ) where
 
-import Prelude
+import Prelude (class Ring, class Semiring, class Ord, class Eq, class Show, Ordering(EQ, LT, GT), (*), (/), ($), (+), (-), (++), (==), pure, otherwise, not, (||), (>=), sub, (&&), (<), (>), one, zero, (/=), show, (<<<), map, bind, compare, (<$>))
 import Global (readFloat)
 
 import Data.String (toCharArray, contains)
@@ -39,8 +39,11 @@ import Data.Int (round) as Int
 import Math as Math
 import Data.Monoid (mempty)
 import Data.Tuple (Tuple(..), fst, snd)
-import Test.QuickCheck.Arbitrary (Arbitrary, arbitrary)
-import Data.Digit
+import Data.Digit (Digit, toInt, fromInt, fromChar, toChar, _zero, _one)
+
+import Control.Monad.Eff.Exception.Unsafe (unsafeThrow)
+
+import Test.QuickCheck.Arbitrary (class Arbitrary, arbitrary)
 
 -- | ##Type definitions
 
@@ -113,7 +116,7 @@ compareHugeNum x@(HugeNum r1) y@(HugeNum r2)
     y' = if y == r.fst then s else m
     z = case compare (take dec r1.digits) (take dec r2.digits) of
              EQ -> compare (drop dec x'.digits) (drop dec y'.digits)
-             x -> x
+             other -> other
 
 -- | Drops leading and trailing _zeroes.
 dropZeroes :: HugeNum -> HugeNum
@@ -185,10 +188,11 @@ fromString s = do
   let signDigits = case leadingChar of
                   '-' -> { sign: Minus, digits: drop 1 charlist }
                   _ -> { sign: Plus, digits: charlist }
+      sign = signDigits.sign
   decimal <- elemIndex '.' signDigits.digits
   newCharlist <- deleteAt decimal signDigits.digits
   digits <- sequence $ map fromChar newCharlist
-  pure $ HugeNum { sign: signDigits.sign, decimal: decimal, digits: digits }
+  pure $ HugeNum { sign, decimal, digits }
 
 -- | Create a HugeNum from a Number.
 
@@ -214,9 +218,9 @@ floatToHugeNum n = HugeNum r where
   big = split.init
   small = drop 1 split.rest
   sign = if n < zero then Minus else Plus
-  r = { digits: mapMaybe fromChar $ big ++ small
-      , decimal: length big
-      , sign: sign }
+  digits = mapMaybe fromChar $ big ++ small
+  decimal = length big
+  r = { digits, decimal, sign }
 
 integralToHugeNum :: Number -> HugeNum
 integralToHugeNum n =
@@ -227,8 +231,7 @@ integralToHugeNum n =
                      Minus -> length integral - 1
                      Plus -> length integral
    in HugeNum { digits: mapMaybe fromChar integral ++ fractional
-              , decimal: decimal
-              , sign: sign }
+              , decimal, sign }
 
 scientificToHugeNum :: Number -> HugeNum
 scientificToHugeNum n = HugeNum r where
@@ -251,7 +254,7 @@ parseScientific n = z where
                  '+' -> Plus
                  _ -> Minus
   exponent = Int.round $ readFloat $ foldMap Char.toString $ signSplit.tail
-  z = { exponent: exponent, expSign: expSign, base: base, sign: sign }
+  z = { exponent, expSign, base, sign }
 
 parsePlusPlus :: Int -> List Char -> HugeRec
 parsePlusPlus exp base = r where
@@ -292,9 +295,11 @@ truncate n (HugeNum r) = HugeNum z where
   newFractional = take n fractional
   z = r { digits = integral ++ newFractional }
 
+-- | Counts how many digits are before the decimal.
 numOfIntegral :: HugeNum -> Int
 numOfIntegral (HugeNum r) = r.decimal
 
+-- | Counts how many digits are after the decimal.
 numOfFractional :: HugeNum -> Int
 numOfFractional (HugeNum r) = length r.digits - r.decimal
 
@@ -303,16 +308,19 @@ integerPart :: HugeNum -> HugeNum
 integerPart (HugeNum r) =
   HugeNum (r { digits = take r.decimal r.digits ++ pure _zero})
 
+-- | Returns the closest integer-valued HugeNum less than or equal to the argument.
 floor :: HugeNum -> HugeNum
 floor h | isPositive h = integerPart h
         | isZero h = zero
         | otherwise = integerPart h - one
 
+-- | Returns the closest integer-valued HugeNum greater than or equal to the argument.
 ceil :: HugeNum -> HugeNum
 ceil h | isNegative h = integerPart h
        | isZero h = zero
        | otherwise = integerPart h + one
 
+-- | Returns the closest integer-valued HugeNum to the argument.
 round :: HugeNum -> HugeNum
 round h | abs (h - floor h) < abs (ceil h - h) = floor h
         | otherwise = ceil h
@@ -322,6 +330,7 @@ fractionalPart :: HugeNum -> HugeNum
 fractionalPart (HugeNum r) =
   HugeNum (r { digits = _zero : drop r.decimal r.digits })
 
+-- | Creates a nonnegative value with the same magnitude as the argument.
 abs :: HugeNum -> HugeNum
 abs (HugeNum r) = HugeNum (r { sign = Plus })
 
@@ -342,6 +351,7 @@ min x y = if x < y then x else y
 max :: HugeNum -> HugeNum -> HugeNum
 max x y = if x > y then x else y
 
+-- | Flips the sign. While `negate` from the Prelude does the same, this is faster.
 neg :: HugeNum -> HugeNum
 neg (HugeNum r@{ sign = Minus }) = HugeNum (r { sign = Plus })
 neg (HugeNum r) = HugeNum (r { sign = Minus })
@@ -528,6 +538,7 @@ multSmallNum :: HugeNum -> HugeNum -> HugeNum
 multSmallNum (HugeNum r) r2 =
   case uncons r.digits of
        Just result -> if result.head == _zero then zeroHugeNum else scale (toInt result.head) r2
+       _ -> unsafeThrow "Error: The impossible happened"
 
 -- | Count how much information the fractional part of a HugeNum holds.
 meatyDecimals :: HugeNum -> Int

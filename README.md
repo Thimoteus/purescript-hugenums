@@ -33,6 +33,10 @@ HugeNum 900000000000000001.0
 
 Addition is implemented using an elementary-school method. Multiplication follows [Karatsuba](https://en.wikipedia.org/wiki/Karatsuba_algorithm).
 
+## documentation
+
+Available on [pursuit](https://pursuit.purescript.org/packages/purescript-hugenums/1.2.0).
+
 ## integers
 
 There is also a newtype for integral values in `Data.HugeInt`.

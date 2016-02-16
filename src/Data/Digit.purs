@@ -5,9 +5,8 @@ module Data.Digit
   , _zero, _one, _two, _three, _four, _five, _six, _seven, _eight, _nine
   ) where
 
-import Prelude
+import Prelude (class Ord, class Eq, class Show, (+), (-), ($), (<=), (&&), (>=), otherwise, compare, (==), show, (++))
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
 import Data.Char (toCharCode, fromCharCode)
 
 newtype Digit = Digit Int

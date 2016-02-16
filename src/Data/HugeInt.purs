@@ -16,7 +16,7 @@ module Data.HugeInt
   , odd
   ) where
 
-import Prelude
+import Prelude (class Ring, class Semiring, class Show, class Ord, class Eq, not, (<<<), show, (-), otherwise, ($), pure, top, (<=), (&&), bottom, (++), (<$>), (==), (*), one, (+), zero, (/=), compare)
 
 import Data.String (replace, takeWhile, drop, length)
 import Data.Int (toNumber)

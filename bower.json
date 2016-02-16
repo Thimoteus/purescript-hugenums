@@ -1,6 +1,6 @@
 {
   "name": "purescript-hugenums",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "moduleType": [
     "node"
   ],
@@ -15,10 +15,10 @@
     "url": "git://github.com/Thimoteus/purescript-hugenums.git"
   },
   "dependencies": {
-    "purescript-arrays": "~0.4.4",
-    "purescript-strings": "~0.7.1",
-    "purescript-globals": "~0.2.2",
-    "purescript-integers": "~0.2.1"
+    "purescript-arrays": "^0.4.4",
+    "purescript-strings": "^0.7.1",
+    "purescript-globals": "^0.2.2",
+    "purescript-integers": "^0.2.1"
   },
   "devDependencies": {
     "purescript-debugger": "~0.1.1",
