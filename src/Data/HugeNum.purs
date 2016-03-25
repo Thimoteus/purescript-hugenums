@@ -3,6 +3,7 @@ module Data.HugeNum
   , fromString
   , fromNumber
   , toNumber
+  , toString
   , integerPart
   , fractionalPart
   , numOfIntegral
