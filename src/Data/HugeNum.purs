@@ -123,12 +123,12 @@ dropZeroes :: HugeNum -> HugeNum
 dropZeroes = dropIntegralZeroes <<< dropFractionalZeroes where
   dropFractionalZeroes (HugeNum r) = HugeNum z where
     fractionalDigits = reverse (drop r.decimal r.digits)
-    meatyFraction = dropWhile (== _zero) fractionalDigits
+    meatyFraction = dropWhile (_ == _zero) fractionalDigits
     digits = reverse meatyFraction
     z = r { digits = take r.decimal r.digits ++ if null digits then pure _zero else digits }
   dropIntegralZeroes (HugeNum r) = HugeNum z where
     integralPart = take r.decimal r.digits
-    zeroes = takeWhile (== _zero) integralPart
+    zeroes = takeWhile (_ == _zero) integralPart
     digits = if length integralPart == length zeroes
                 then pure _zero
                 else drop (length zeroes) integralPart
@@ -213,8 +213,8 @@ floatToHugeNum :: Number -> HugeNum
 floatToHugeNum n = HugeNum r where
   pos = n >= zero
   split = if pos
-             then span (/= '.') (fromFoldable <<< toCharArray $ show n)
-             else span (/= '.') (drop 1 $ fromFoldable <<< toCharArray $ show n)
+             then span (_ /= '.') (fromFoldable <<< toCharArray $ show n)
+             else span (_ /= '.') (drop 1 $ fromFoldable <<< toCharArray $ show n)
   big = split.init
   small = drop 1 split.rest
   sign = if n < zero then Minus else Plus
@@ -246,8 +246,8 @@ scientificToHugeNum n = HugeNum r where
 
 parseScientific :: Number -> { exponent :: Int, expSign :: Sign, base :: List Char, sign :: Sign }
 parseScientific n = z where
-  split = span (/= 'e') (fromFoldable <<< toCharArray $ show n)
-  base = filter (/= '.') split.init
+  split = span (_ /= 'e') (fromFoldable <<< toCharArray $ show n)
+  base = filter (_ /= '.') split.init
   sign = if n < zero then Minus else Plus
   signSplit = fromJust $ uncons $ drop 1 split.rest
   expSign = case signSplit.head of
@@ -343,7 +343,7 @@ isPositive (HugeNum { sign = Plus }) = true
 isPositive _ = false
 
 isZero :: HugeNum -> Boolean
-isZero (HugeNum r) = all (== _zero) r.digits
+isZero (HugeNum r) = all (_ == _zero) r.digits
 
 min :: HugeNum -> HugeNum -> HugeNum
 min x y = if x < y then x else y
@@ -422,7 +422,7 @@ digitwiseSubtract (Tuple xs d) (Tuple t b) =
    in Tuple (diff : xs) spill
 
 unsafeRemoveFrontZeroes :: List Digit -> List Digit
-unsafeRemoveFrontZeroes = dropWhile (== _zero)
+unsafeRemoveFrontZeroes = dropWhile (_ == _zero)
 
 adjustDecimalForFrontZeroes :: List Digit -> Int -> Int
 adjustDecimalForFrontZeroes xs oldDec =
@@ -457,7 +457,7 @@ type KRep = { exp :: Int, coeff :: List Digit, const :: HugeNum }
 -- | Drop the _zeroes on the tail.
 takeMeatyParts :: List Digit -> List Digit
 takeMeatyParts arr =
-  reverse (dropWhile (== _zero) (reverse arr))
+  reverse (dropWhile (_ == _zero) (reverse arr))
 
 -- | Turn a `KRep` into a `HugeNum`.
 fromKRep :: KRep -> HugeNum
@@ -544,11 +544,11 @@ multSmallNum (HugeNum r) r2 =
 meatyDecimals :: HugeNum -> Int
 meatyDecimals (HugeNum r) =
   let decimals = reverse $ drop r.decimal r.digits
-      meaty = dropWhile (== _zero) decimals
+      meaty = dropWhile (_ == _zero) decimals
    in length meaty
 
 isHugeInteger :: HugeNum -> Boolean
-isHugeInteger (HugeNum r) = all (== _zero) $ drop r.decimal r.digits
+isHugeInteger (HugeNum r) = all (_ == _zero) $ drop r.decimal r.digits
 
 -- | Moves the decimal place in a HugeNum so it has a trivial fractional part.
 makeHugeInteger :: HugeNum -> HugeNum
@@ -565,7 +565,7 @@ makeHugeInteger' (HugeNum r) = HugeNum z where
 trivialFraction :: HugeNum -> Boolean
 trivialFraction (HugeNum r) =
   let decimals = reverse $ drop r.decimal r.digits
-      meaty = dropWhile (== _zero) decimals
+      meaty = dropWhile (_ == _zero) decimals
    in null meaty
 
 -- | When multiplying two HugeNums and one has a nontrivial fractional part,
