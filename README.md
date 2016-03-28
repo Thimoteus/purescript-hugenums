@@ -35,7 +35,7 @@ Addition is implemented using an elementary-school method. Multiplication follow
 
 ## documentation
 
-Available on [pursuit](https://pursuit.purescript.org/packages/purescript-hugenums/1.2.0).
+Available on [pursuit](https://pursuit.purescript.org/packages/purescript-hugenums/).
 
 ## integers
 
