@@ -36,7 +36,7 @@ instance ordHugeInt :: Ord HugeInt where
 instance showHugeInt :: Show HugeInt where
   show (HugeInt h) = show' h where
     show' = replace "Num" "Int"
-        <<< takeWhile (/= '.')
+        <<< takeWhile (_ /= '.')
         <<< show
 
 instance semiringHugeInt :: Semiring HugeInt where
