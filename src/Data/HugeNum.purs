@@ -55,7 +55,7 @@ newtype HugeNum = HugeNum HugeRec
 -- | ##Instances
 
 instance arbHugeNum :: Arbitrary HugeNum where
-  arbitrary = fromNumber <<< Math.round <<< (* 1000.0) <$> arbitrary
+  arbitrary = fromNumber <<< Math.round <<< (_ * 1000.0) <$> arbitrary
 
 instance eqSign :: Eq Sign where
   eq Plus Plus = true
@@ -73,7 +73,7 @@ timesSign Minus Minus = Plus
 timesSign _ _ = Minus
 
 instance showHugeNum :: Show HugeNum where
-  show = ("HugeNum " ++) <<< toString -- <<< dropZeroes
+  show = ("HugeNum " ++ _ ) <<< toString -- <<< dropZeroes
 
 instance eqHugeNum :: Eq HugeNum where
   eq x y
@@ -480,7 +480,7 @@ toKRep exp h@(HugeNum r) = z where
 
 -- | Takes two HugeNums and calculates a suitable exponent m in B^m.
 getPowForKRep :: HugeNum -> HugeNum -> Int
-getPowForKRep x y = (`sub` 1) $ _.decimal $ rec $ min (abs x) (abs y)
+getPowForKRep x y = (_ `sub` 1) $ _.decimal $ rec $ min (abs x) (abs y)
 
 -- | Turns an array of digits into an integral HugeNum.
 arrayToHugeNum :: List Digit -> HugeNum
