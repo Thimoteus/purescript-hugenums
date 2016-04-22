@@ -588,6 +588,7 @@ adjustDecimalForTriviality h1 h2 (HugeNum r3) = HugeNum r where
 
 -- | Raise a HugeNum to an integer power.
 pow :: HugeNum -> Int -> HugeNum
+pow r 0 = one
 pow r 1 = r
 pow r n =
   let c = r * r
