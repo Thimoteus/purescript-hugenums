@@ -16,7 +16,7 @@ module Data.HugeInt
   , odd
   ) where
 
-import Prelude (class Ring, class Semiring, class Show, class Ord, class Eq, not, (<<<), show, (-), otherwise, ($), pure, top, (<=), (&&), bottom, (++), (<$>), (==), (*), one, (+), zero, (/=), compare)
+import Prelude
 
 import Data.String (replace, takeWhile, drop, length)
 import Data.Int (toNumber)
@@ -34,10 +34,7 @@ instance ordHugeInt :: Ord HugeInt where
   compare (HugeInt h1) (HugeInt h2) = compare h1 h2
 
 instance showHugeInt :: Show HugeInt where
-  show (HugeInt h) = show' h where
-    show' = replace "Num" "Int"
-        <<< takeWhile (_ /= '.')
-        <<< show
+  show (HugeInt h) = "HugeInt" <> HN.toString h
 
 instance semiringHugeInt :: Semiring HugeInt where
   zero = HugeInt zero

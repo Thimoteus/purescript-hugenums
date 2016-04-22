@@ -1,5 +1,5 @@
 module Data.HugeNum
-  ( HugeNum()
+  ( HugeNum
   , fromString
   , fromNumber
   , toNumber
@@ -19,11 +19,11 @@ module Data.HugeNum
   , ceil
   , round
   , googol
-  , pow
+  , pow, (^)
   , truncate
   ) where
 
-import Prelude (class Ring, class Semiring, class Ord, class Eq, class Show, Ordering(EQ, LT, GT), (*), (/), ($), (+), (-), (++), (==), pure, otherwise, not, (||), (>=), sub, (&&), (<), (>), one, zero, (/=), show, (<<<), map, bind, compare, (<$>))
+import Prelude
 import Global (readFloat)
 
 import Data.String (toCharArray, contains)
@@ -47,6 +47,10 @@ import Control.Monad.Eff.Exception.Unsafe (unsafeThrow)
 import Test.QuickCheck.Arbitrary (class Arbitrary, arbitrary)
 
 -- | ##Type definitions
+-- | Well-formed HugeNums are such that the decimal is a positive number less
+-- | than the length of the list of digits. For example, to denote the integer
+-- | 2, we would set `sign = Plus, digits = 2 : 0 : Nil, decimal = 1`.
+-- | Any extraneous 0's on either end of the list of digits should be trimmed. 
 
 data Sign = Plus | Minus
 type HugeRec = { digits :: List Digit, decimal :: Int, sign :: Sign }
@@ -55,7 +59,7 @@ newtype HugeNum = HugeNum HugeRec
 -- | ##Instances
 
 instance arbHugeNum :: Arbitrary HugeNum where
-  arbitrary = fromNumber <<< Math.round <<< (* 1000.0) <$> arbitrary
+  arbitrary = fromNumber <<< Math.round <<< (_ * 1000.0) <$> arbitrary
 
 instance eqSign :: Eq Sign where
   eq Plus Plus = true
@@ -73,7 +77,7 @@ timesSign Minus Minus = Plus
 timesSign _ _ = Minus
 
 instance showHugeNum :: Show HugeNum where
-  show = ("HugeNum " ++) <<< toString -- <<< dropZeroes
+  show = append "HugeNum " <<< toString -- <<< dropZeroes
 
 instance eqHugeNum :: Eq HugeNum where
   eq x y
@@ -480,7 +484,7 @@ toKRep exp h@(HugeNum r) = z where
 
 -- | Takes two HugeNums and calculates a suitable exponent m in B^m.
 getPowForKRep :: HugeNum -> HugeNum -> Int
-getPowForKRep x y = (`sub` 1) $ _.decimal $ rec $ min (abs x) (abs y)
+getPowForKRep x y = (_ - 1) $ _.decimal $ rec $ min (abs x) (abs y)
 
 -- | Turns an array of digits into an integral HugeNum.
 arrayToHugeNum :: List Digit -> HugeNum
@@ -580,7 +584,7 @@ adjustDecimalForTriviality h1 h2 (HugeNum r3) = HugeNum r where
   digits = replicate (decimalMod - digitsLength + 1) _zero ++ digits'
   decimal = length $ drop decimalMod $ reverse digits
   sign = Plus
-  r = { digits: digits, decimal: decimal, sign: sign }
+  r = { digits, decimal, sign }
 
 -- | Raise a HugeNum to an integer power.
 pow :: HugeNum -> Int -> HugeNum
@@ -592,11 +596,12 @@ pow r n =
          then r * ans
          else ans
 
+infixr 8 pow as ^
+
 -- | Division
-{--
-newton :: HugeNum -> HugeNum
-newton = go 4 where
-  go 0 x = truncate 2 $ newtonInit x
-  go n x = (go (n - 1) x) * (fromNumber 2.0 - x * go (n - 1) x)
-  --}
-  -- x_i = x_i-1 * (2 - b * x_i-1)
+long :: Partial => HugeNum -> HugeNum -> HugeNum
+long num den | isZero den = unsafeThrow "division by zero"
+
+{-- adjustDecimalsForDivision :: Tuple HugeNum HugeNum -> Tuple HugeNum HugeNum --}
+{-- adjustDecimalsForDivision (Tuple (HugeNum h1) (HugeNum h2)) = Tuple (HugeNum z1) (HugeNum z2) --}
+{--   where --}
