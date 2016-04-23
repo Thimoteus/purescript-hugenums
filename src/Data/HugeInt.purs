@@ -18,7 +18,7 @@ module Data.HugeInt
 
 import Prelude
 
-import Data.String (replace, takeWhile, drop, length)
+import Data.String (length, drop, takeWhile)
 import Data.Int (toNumber)
 import Data.Int (round) as Int
 import Data.Maybe (Maybe(..))
@@ -34,7 +34,7 @@ instance ordHugeInt :: Ord HugeInt where
   compare (HugeInt h1) (HugeInt h2) = compare h1 h2
 
 instance showHugeInt :: Show HugeInt where
-  show (HugeInt h) = "HugeInt" <> HN.toString h
+  show (HugeInt h) = "HugeInt " <> takeWhile (_ /= '.') (HN.toString h)
 
 instance semiringHugeInt :: Semiring HugeInt where
   zero = HugeInt zero
