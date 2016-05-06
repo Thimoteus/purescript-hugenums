@@ -50,7 +50,7 @@ import Test.QuickCheck.Arbitrary (class Arbitrary, arbitrary)
 -- | Well-formed HugeNums are such that the decimal is a positive number less
 -- | than the length of the list of digits. For example, to denote the integer
 -- | 2, we would set `sign = Plus, digits = 2 : 0 : Nil, decimal = 1`.
--- | Any extraneous 0's on either end of the list of digits should be trimmed. 
+-- | Any extraneous 0's on either end of the list of digits should be trimmed.
 
 data Sign = Plus | Minus
 type HugeRec = { digits :: List Digit, decimal :: Int, sign :: Sign }
@@ -234,7 +234,7 @@ integralToHugeNum n =
       sign = if n < zero then Minus else Plus
       decimal = case sign of
                      Minus -> length integral - 1
-                     Plus -> length integral
+                     _ -> length integral
    in HugeNum { digits: mapMaybe fromChar integral ++ fractional
               , decimal, sign }
 
@@ -244,10 +244,10 @@ scientificToHugeNum n = HugeNum r where
   r = case parsed.expSign of
            Plus -> case parsed.sign of
                         Plus -> parsePlusPlus parsed.exponent parsed.base
-                        Minus -> parsePlusMinus parsed.exponent parsed.base
-           Minus -> case parsed.sign of
-                         Plus -> parseMinusPlus parsed.exponent parsed.base
-                         Minus -> parseMinusMinus parsed.exponent parsed.base
+                        _ -> parsePlusMinus parsed.exponent parsed.base
+           _ -> case parsed.sign of
+                     Plus -> parseMinusPlus parsed.exponent parsed.base
+                     _ -> parseMinusMinus parsed.exponent parsed.base
 
 parseScientific :: Number -> { exponent :: Int, expSign :: Sign, base :: List Char, sign :: Sign }
 parseScientific n = z where
@@ -600,9 +600,19 @@ pow r n =
 infixr 8 pow as ^
 
 -- | Division
-long :: Partial => HugeNum -> HugeNum -> HugeNum
-long num den | isZero den = unsafeThrow "division by zero"
+{-- long :: HugeNum -> HugeNum -> HugeNum --}
+{-- long num den --}
+{--   | isZero den = unsafeThrow "division by zero" --}
+{--   | num == den = oneHugeNum --}
+{--   | num < den = divProper num den --}
+{--   | otherwise = divImproper num den --}
 
-{-- adjustDecimalsForDivision :: Tuple HugeNum HugeNum -> Tuple HugeNum HugeNum --}
-{-- adjustDecimalsForDivision (Tuple (HugeNum h1) (HugeNum h2)) = Tuple (HugeNum z1) (HugeNum z2) --}
-{--   where --}
+{-- divProper :: HugeNum -> HugeNum -> HugeNum --}
+{-- divProper num den = oneHugeNum --}
+
+{-- divImproper :: HugeNum -> HugeNum -> HugeNum --}
+{-- divImproper num den = oneHugeNum --}
+
+{-- adjustDecimalsForProper :: HugeNum -> HugeNum -> { num :: HugeNum, den :: HugeNum } --}
+{-- adjustDecimalsForProper (HugeNum h1) (HugeNum h2) = HugeNum h where --}
+  

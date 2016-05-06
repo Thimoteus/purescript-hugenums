@@ -1,5 +1,5 @@
 module Data.HugeInt
-  ( HugeInt()
+  ( HugeInt
   , fromInt
   , fromString
   , toInt
