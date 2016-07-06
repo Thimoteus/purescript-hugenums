@@ -5,14 +5,14 @@ module Data.Digit
   , _zero, _one, _two, _three, _four, _five, _six, _seven, _eight, _nine
   ) where
 
-import Prelude (class Ord, class Eq, class Show, (+), (-), ($), (<=), (&&), (>=), otherwise, compare, (==), show, (++))
+import Prelude (class Ord, class Eq, class Show, (+), (-), ($), (<=), (&&), (>=), otherwise, compare, (==), show, (<>))
 import Data.Maybe (Maybe(..))
 import Data.Char (toCharCode, fromCharCode)
 
 newtype Digit = Digit Int
 
 instance showDigit :: Show Digit where
-  show (Digit n) = "Digit " ++ show n
+  show (Digit n) = "Digit " <> show n
 
 instance eqDigit :: Eq Digit where
   eq (Digit n) (Digit m) = n == m

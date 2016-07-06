@@ -26,21 +26,21 @@ module Data.HugeNum
 import Prelude
 import Global (readFloat)
 
-import Data.String (toCharArray, contains)
-import Data.Char (toString) as Char
+import Data.String (toCharArray, contains, singleton)
 import Data.List (span, drop, take, mapMaybe, length, filter, uncons, head,
                  insertAt, dropWhile, takeWhile, reverse, (:), zip, deleteAt,
-                 null, List(Nil), replicate, fromFoldable, elemIndex)
+                 null, List(Nil), fromFoldable, elemIndex)
+import Data.Unfoldable (replicate)
 import Data.Traversable (sequence)
 import Data.Foldable (foldl, all, foldMap)
-import Data.Maybe (Maybe(..))
-import Data.Maybe.Unsafe (fromJust)
+import Data.Maybe (Maybe(..), fromJust)
 import Data.Int (odd)
 import Data.Int (round) as Int
 import Math as Math
 import Data.Monoid (mempty)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Digit (Digit, toInt, fromInt, fromChar, toChar, _zero, _one)
+import Partial.Unsafe (unsafePartial)
 
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrow)
 
@@ -130,7 +130,7 @@ dropZeroes = dropIntegralZeroes <<< dropFractionalZeroes where
     fractionalDigits = reverse (drop r.decimal r.digits)
     meatyFraction = dropWhile (_ == _zero) fractionalDigits
     digits = reverse meatyFraction
-    z = r { digits = take r.decimal r.digits ++ if null digits then pure _zero else digits }
+    z = r { digits = take r.decimal r.digits <> if null digits then pure _zero else digits }
   dropIntegralZeroes (HugeNum r) = HugeNum z where
     integralPart = take r.decimal r.digits
     zeroes = takeWhile (_ == _zero) integralPart
@@ -138,13 +138,13 @@ dropZeroes = dropIntegralZeroes <<< dropFractionalZeroes where
                 then pure _zero
                 else drop (length zeroes) integralPart
     decimal = length digits
-    z = r { digits = digits ++ drop r.decimal r.digits, decimal = decimal }
+    z = r { digits = digits <> drop r.decimal r.digits, decimal = decimal }
 
 -- | Adds _zeroes where necessary to make two HugeNums have the same number of
 -- | digits and the same decimal place.
 equivalize :: { fst:: HugeNum, snd :: HugeNum } -> { fst :: HugeNum, snd :: HugeNum }
 equivalize = integralize <<< fractionalize where
-  fractionalize { fst = x@(HugeNum r1), snd = y@(HugeNum r2) }
+  fractionalize { fst: x@(HugeNum r1), snd: y@(HugeNum r2) }
     | length (drop r1.decimal r1.digits) == length (drop r2.decimal r2.digits) = { fst: x, snd: y }
     | otherwise = z where
       test = x `lessPrecise` y
@@ -152,16 +152,16 @@ equivalize = integralize <<< fractionalize where
       greater = if test then r2 else r1
       lesserDecimal = length (drop greater.decimal greater.digits) - length (drop lesser.decimal lesser.digits)
       zeroes = replicate lesserDecimal _zero
-      lesser' = lesser { digits = lesser.digits ++ zeroes }
+      lesser' = lesser { digits = lesser.digits <> zeroes }
       z = { fst: HugeNum lesser', snd: HugeNum greater }
-  integralize { fst = x@(HugeNum r1), snd = y@(HugeNum r2) }
+  integralize { fst: x@(HugeNum r1), snd: y@(HugeNum r2) }
     | length (take r1.decimal r1.digits) == length (take r2.decimal r2.digits) = { fst: x, snd: y }
     | otherwise = z where
       lesser = rec (min x y)
       greater = rec (max x y)
       zeroesLength = length (take greater.decimal greater.digits) - length (take lesser.decimal lesser.digits)
       zeroes = replicate zeroesLength _zero
-      lesser' = lesser { digits = zeroes ++ lesser.digits, decimal = greater.decimal }
+      lesser' = lesser { digits = zeroes <> lesser.digits, decimal = greater.decimal }
       z = { fst: HugeNum lesser', snd: HugeNum greater }
 
 -- | Check whether a HugeNum has fewer significant fractional digits than another.
@@ -177,11 +177,11 @@ toNumber = readFloat <<< toString
 toString :: HugeNum -> String
 toString (HugeNum r) =
   let charray = map toChar r.digits :: List Char
-      numray = fromJust $ insertAt r.decimal '.' charray
+      numray = unsafePartial $ fromJust $ insertAt r.decimal '.' charray
       sign = case r.sign of
                   Plus -> mempty :: List Char
                   Minus -> pure '-' :: List Char
-   in foldMap Char.toString (sign ++ numray)
+   in foldMap singleton (sign <> numray)
 
 -- | Create a HugeNum from a String.
 -- | Strings should be in the form of a Purescript `Number`. For example,
@@ -223,7 +223,7 @@ floatToHugeNum n = HugeNum r where
   big = split.init
   small = drop 1 split.rest
   sign = if n < zero then Minus else Plus
-  digits = mapMaybe fromChar $ big ++ small
+  digits = mapMaybe fromChar $ big <> small
   decimal = length big
   r = { digits, decimal, sign }
 
@@ -235,7 +235,7 @@ integralToHugeNum n =
       decimal = case sign of
                      Minus -> length integral - 1
                      _ -> length integral
-   in HugeNum { digits: mapMaybe fromChar integral ++ fractional
+   in HugeNum { digits: mapMaybe fromChar integral <> fractional
               , decimal, sign }
 
 scientificToHugeNum :: Number -> HugeNum
@@ -254,30 +254,30 @@ parseScientific n = z where
   split = span (_ /= 'e') (fromFoldable <<< toCharArray $ show n)
   base = filter (_ /= '.') split.init
   sign = if n < zero then Minus else Plus
-  signSplit = fromJust $ uncons $ drop 1 split.rest
+  signSplit = unsafePartial $ fromJust $ uncons $ drop 1 split.rest
   expSign = case signSplit.head of
                  '+' -> Plus
                  _ -> Minus
-  exponent = Int.round $ readFloat $ foldMap Char.toString $ signSplit.tail
+  exponent = Int.round $ readFloat $ foldMap singleton $ signSplit.tail
   z = { exponent, expSign, base, sign }
 
 parsePlusPlus :: Int -> List Char -> HugeRec
 parsePlusPlus exp base = r where
   zeroCardinality = exp - length base + 2
   zeroes = replicate zeroCardinality _zero
-  digits = mapMaybe fromChar base ++ zeroes
+  digits = mapMaybe fromChar base <> zeroes
   decimal = 1 + exp
   r = { digits: digits, decimal: decimal, sign: Plus }
 
 parsePlusMinus :: Int -> List Char -> HugeRec
 parsePlusMinus exp base =
   let r = parsePlusPlus exp base
-   in r { sign = Minus, digits = r.digits ++ pure _zero }
+   in r { sign = Minus, digits = r.digits <> pure _zero }
 
 parseMinusPlus :: Int -> List Char -> HugeRec
 parseMinusPlus exp base = r where
   zeroes = replicate exp _zero
-  digits = zeroes ++ mapMaybe fromChar base
+  digits = zeroes <> mapMaybe fromChar base
   decimal = 1
   r = { digits: digits, decimal: decimal, sign: Plus }
 
@@ -298,7 +298,7 @@ truncate n (HugeNum r) = HugeNum z where
   integral = take r.decimal r.digits
   fractional = drop r.decimal r.digits
   newFractional = take n fractional
-  z = r { digits = integral ++ newFractional }
+  z = r { digits = integral <> newFractional }
 
 -- | Counts how many digits are before the decimal.
 numOfIntegral :: HugeNum -> Int
@@ -311,7 +311,7 @@ numOfFractional (HugeNum r) = length r.digits - r.decimal
 -- | Returns the integer part of a HugeNum.
 integerPart :: HugeNum -> HugeNum
 integerPart (HugeNum r) =
-  HugeNum (r { digits = take r.decimal r.digits ++ pure _zero})
+  HugeNum (r { digits = take r.decimal r.digits <> pure _zero})
 
 -- | Returns the closest integer-valued HugeNum less than or equal to the argument.
 floor :: HugeNum -> HugeNum
@@ -340,11 +340,11 @@ abs :: HugeNum -> HugeNum
 abs (HugeNum r) = HugeNum (r { sign = Plus })
 
 isNegative :: HugeNum -> Boolean
-isNegative (HugeNum { sign = Minus }) = true
+isNegative (HugeNum { sign: Minus }) = true
 isNegative _ = false
 
 isPositive :: HugeNum -> Boolean
-isPositive (HugeNum { sign = Plus }) = true
+isPositive (HugeNum { sign: Plus }) = true
 isPositive _ = false
 
 isZero :: HugeNum -> Boolean
@@ -358,7 +358,7 @@ max x y = if x > y then x else y
 
 -- | Flips the sign. While `negate` from the Prelude does the same, this is faster.
 neg :: HugeNum -> HugeNum
-neg (HugeNum r@{ sign = Minus }) = HugeNum (r { sign = Plus })
+neg (HugeNum r@{ sign: Minus }) = HugeNum (r { sign = Plus})
 neg (HugeNum r) = HugeNum (r { sign = Minus })
 
 -- | Specific HugeNums
@@ -392,7 +392,7 @@ digitwiseAdd (Tuple xs d) (Tuple t b) =
   let tint = toInt t + toInt d
       bint = toInt b
       summ' = tint + bint
-      summ = fromJust $ fromInt if summ' > 9 then summ' - 10 else summ'
+      summ = unsafePartial $ fromJust $ fromInt if summ' > 9 then summ' - 10 else summ'
       spill = if summ' > 9 then _one else _zero
    in Tuple (summ : xs) spill
 
@@ -414,7 +414,7 @@ addPlusMinus x y = (HugeNum z) where
   integralDigits' = unsafeRemoveFrontZeroes integralDigits''
   integralDigits = if null integralDigits' then pure _zero else integralDigits'
   decimal = adjustDecimalForFrontZeroes (fst digits'') r1.decimal
-  digits = integralDigits ++ fractionalDigits
+  digits = integralDigits <> fractionalDigits
   z = { digits: digits, decimal: decimal, sign: Plus }
 
 digitwiseSubtract :: Tuple (List Digit) Digit -> Tuple Digit Digit -> Tuple (List Digit) Digit
@@ -422,7 +422,7 @@ digitwiseSubtract (Tuple xs d) (Tuple t b) =
   let tint = toInt t - toInt d
       bint = toInt b
       diff' = tint - bint
-      diff = fromJust $ fromInt if diff' < 0 then diff' + 10 else diff'
+      diff = unsafePartial $ fromJust $ fromInt if diff' < 0 then diff' + 10 else diff'
       spill = if diff' < 0 then _one else _zero
    in Tuple (diff : xs) spill
 
@@ -468,7 +468,7 @@ takeMeatyParts arr =
 fromKRep :: KRep -> HugeNum
 fromKRep k = z where
   bm = { sign: Plus, digits: _one : replicate (k.exp + 1) _zero, decimal: k.exp + 1 }
-  prod = k.coeff ++ drop 1 bm.digits
+  prod = k.coeff <> drop 1 bm.digits
   leftSummand = HugeNum { digits: prod, sign: Plus, decimal: bm.decimal + length k.coeff - 1 }
   z = plus leftSummand k.const
 
@@ -477,7 +477,7 @@ toKRep :: Int -> HugeNum -> KRep
 toKRep exp h@(HugeNum r) = z where
   bm = _one : replicate exp _zero
   coeff = take (r.decimal - exp) r.digits
-  prod = coeff ++ drop 1 bm
+  prod = coeff <> drop 1 bm
   leftSummand = arrayToHugeNum prod
   k = plus h (neg leftSummand)
   z = { exp: exp, coeff: coeff, const: k }
@@ -489,11 +489,11 @@ getPowForKRep x y = (_ - 1) $ _.decimal $ rec $ min (abs x) (abs y)
 -- | Turns an array of digits into an integral HugeNum.
 arrayToHugeNum :: List Digit -> HugeNum
 arrayToHugeNum xs =
-  HugeNum { sign: Plus, digits: xs ++ pure _zero, decimal: length xs }
+  HugeNum { sign: Plus, digits: xs <> pure _zero, decimal: length xs }
 
 -- | Test for whether we can reach the base case of recursive multiplication.
 smallEnough :: HugeNum -> Boolean
-smallEnough (HugeNum { digits = digits, decimal = 1 }) | length digits == 2 = true
+smallEnough (HugeNum { digits: digits, decimal: 1 }) | length digits == 2 = true
 smallEnough _ = false
 
 -- | Multiplying by a power of ten is easy. All we have to do is append _zeroes!
@@ -504,7 +504,7 @@ timesPowOfTen n (HugeNum r) = z where
                        then newDecimal - length (takeMeatyParts r.digits)
                        else 0
   newZeroes = replicate newZeroesLength _zero
-  z = HugeNum { digits: r.digits ++ newZeroes, sign: r.sign, decimal: newDecimal }
+  z = HugeNum { digits: r.digits <> newZeroes, sign: r.sign, decimal: newDecimal }
 
 -- | Karatsuba multiplication.
 times :: HugeNum -> HugeNum -> HugeNum
@@ -562,7 +562,7 @@ makeHugeInteger r = if isHugeInteger r then r else makeHugeInteger' r
 -- | Assumes a nontrivial fractional component
 makeHugeInteger' :: HugeNum -> HugeNum
 makeHugeInteger' (HugeNum r) = HugeNum z where
-  digits = unsafeRemoveFrontZeroes r.digits ++ pure _zero
+  digits = unsafeRemoveFrontZeroes r.digits <> pure _zero
   decimal = length digits - 1
   z = r { digits = digits, decimal = decimal }
 
@@ -581,7 +581,7 @@ adjustDecimalForTriviality h1 h2 (HugeNum r3) = HugeNum r where
   digitsLength = length r3.digits - 1
   digits' = take digitsLength r3.digits -- r3 is always an integer-like representation of h1 * h2
   decimalMod = meatyDecimals h1 + meatyDecimals h2
-  digits = replicate (decimalMod - digitsLength + 1) _zero ++ digits'
+  digits = replicate (decimalMod - digitsLength + 1) _zero <> digits'
   decimal = length $ drop decimalMod $ reverse digits
   sign = Plus
   r = { digits, decimal, sign }

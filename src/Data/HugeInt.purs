@@ -59,7 +59,7 @@ fromHugeNum h | HN.integerPart h == h = pure $ HugeInt h
 -- | Input must look like a Purescript `Int`.
 -- | For example, `fromString "123456789012345" => Just (HugeInt 123456789012345)`.
 fromString :: String -> Maybe HugeInt
-fromString s = HugeInt <$> HN.fromString (s ++ ".0")
+fromString s = HugeInt <$> HN.fromString (s <> ".0")
 
 toInt :: HugeInt -> Maybe Int
 toInt h@(HugeInt r)
