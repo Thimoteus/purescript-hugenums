@@ -23,7 +23,7 @@ module Data.HugeNum
   , truncate
   ) where
 
-import Prelude
+import Prelude hiding (min, max)
 import Global (readFloat)
 
 import Data.String (toCharArray, contains, singleton)
@@ -615,4 +615,3 @@ infixr 8 pow as ^
 
 {-- adjustDecimalsForProper :: HugeNum -> HugeNum -> { num :: HugeNum, den :: HugeNum } --}
 {-- adjustDecimalsForProper (HugeNum h1) (HugeNum h2) = HugeNum h where --}
-  
