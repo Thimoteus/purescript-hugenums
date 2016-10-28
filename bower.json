@@ -16,16 +16,13 @@
     "url": "git://github.com/Thimoteus/purescript-hugenums.git"
   },
   "dependencies": {
-    "purescript-arrays": "^1.0.0",
-    "purescript-strings": "^1.0.0",
-    "purescript-globals": "^1.0.0",
-    "purescript-integers": "^1.0.0",
-    "purescript-quickcheck": "~1.0.0"
+    "purescript-arrays": "^3.0.0",
+    "purescript-strings": "^2.0.2",
+    "purescript-globals": "^2.0.0",
+    "purescript-integers": "^2.0.0",
+    "purescript-quickcheck": "^3.0.0"
   },
   "devDependencies": {
-    "purescript-debugger": "~1.0.0",
-    "purescript-test-unit": "~7.0.0",
-    "purescript-quickcheck-laws": "~1.0.0",
-    "purescript-benchotron": "~4.0.0"
+    "purescript-quickcheck-laws": "^2.0.0"
   }
 }
