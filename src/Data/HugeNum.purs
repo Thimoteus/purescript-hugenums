@@ -9,8 +9,6 @@ module Data.HugeNum
   , numOfIntegral
   , numOfFractional
   , abs
-  , max
-  , min
   , neg
   , isNegative
   , isPositive
@@ -26,7 +24,7 @@ module Data.HugeNum
 import Prelude hiding (min, max)
 import Global (readFloat)
 
-import Data.String (toCharArray, contains, singleton)
+import Data.String (Pattern(..), toCharArray, contains, singleton)
 import Data.List (span, drop, take, mapMaybe, length, filter, uncons, head,
                  insertAt, dropWhile, takeWhile, reverse, (:), zip, deleteAt,
                  null, List(Nil), fromFoldable, elemIndex)
@@ -210,8 +208,8 @@ data NumberStyle = Float | Integral | Scientific
 -- | For example, the fractional part of `9000000000000000.5` is unrecoverable.
 parseNumber :: Number -> NumberStyle
 parseNumber n
-  | contains "e" (show n) = Scientific
-  | contains "." (show n) = Float
+  | contains (Pattern "e") (show n) = Scientific
+  | contains (Pattern ".") (show n) = Float
   | otherwise = Integral
 
 floatToHugeNum :: Number -> HugeNum
@@ -349,12 +347,6 @@ isPositive _ = false
 
 isZero :: HugeNum -> Boolean
 isZero (HugeNum r) = all (_ == _zero) r.digits
-
-min :: HugeNum -> HugeNum -> HugeNum
-min x y = if x < y then x else y
-
-max :: HugeNum -> HugeNum -> HugeNum
-max x y = if x > y then x else y
 
 -- | Flips the sign. While `negate` from the Prelude does the same, this is faster.
 neg :: HugeNum -> HugeNum
